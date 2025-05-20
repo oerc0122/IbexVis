@@ -1,0 +1,19 @@
+{
+    "time": {
+        "rate": 1.0,
+        "always_advance": true
+    },
+    "beam": {
+        "rate": 127.0,
+        "always_advance": true
+    },
+    "events": {
+        "rate": 1.0,
+        "always_advance": true
+    },
+    "T_head": {
+        "initial": 300.0,
+        "rate_up": 10.0,
+        "rate_down": -10.0
+    }
+}
