@@ -2,23 +2,14 @@
 
 import logging
 import math
-import typing
-from dataclasses import dataclass
+from collections.abc import Callable
 from typing import Any
 from typing import NoReturn as Never
 
-from ibex_vis.classes import Property
+from ibex_vis.classes import CurrentState, Property
 
 
 class Abort(Exception): ...
-
-
-@dataclass
-class CurrentState:
-    properties: dict[str, Property]
-    counts: list[tuple[float, float]]
-    run_variables: dict
-    counting: float | None = None
 
 
 CURRENT_STATE: CurrentState = CurrentState({}, [], {})
@@ -184,7 +175,7 @@ class genie:  # noqa:PLR0904
         raw_frames: int | None = None,
         uamps: float | None = None,
         mevents: float | None = None,
-        early_exit: typing.Callable[[], bool] | None = None,
+        early_exit: Callable[[], bool] | None = None,
         quiet: bool = False,
         **pars: float,
     ):
