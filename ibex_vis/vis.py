@@ -5,8 +5,7 @@ import itertools
 import json
 from collections.abc import Sequence
 from pathlib import Path
-from runpy import run_path
-from tempfile import NamedTemporaryFile
+import importlib, types
 
 import matplotlib.pyplot as plt
 
@@ -32,19 +31,20 @@ def runner(script_file: Path, parameters: dict[str, Property]) -> dg.CurrentStat
     """
     dg.CURRENT_STATE = dg.CurrentState(properties=parameters, counts=[], run_variables={})
 
-    with NamedTemporaryFile("w+", encoding="utf-8") as out_file:
-        with script_file.open(encoding="utf-8") as in_file:
-            for line in in_file:
-                new_line = line.replace("genie_python", "ibex_vis.dummy_genie")
-                new_line = new_line.replace("inst", "ibex_vis.dummy_inst")
-                out_file.write(new_line)
+    loader = importlib.machinery.SourceFileLoader('<user_script>', script_file)
+    src = loader.get_data(script_file).decode()
+    if "runscript" not in src:
+        raise ValueError("Unable to find main runscript function.")
+    src = src.replace("genie_python", "ibex_vis.dummy_genie")
+    src = src.replace("inst", "ibex_vis.dummy_inst")
+    code = loader.source_to_code(src, script_file)
+    tmp_mod = types.ModuleType('UserScriptModule')
+    tmp_mod.__file__ = script_file
+    env = {**globals()}
+    env.update(tmp_mod.__dict__)
+    exec(code, env)
 
-        out_file.seek(0)
-        script = run_path(out_file.name, run_name="tmp")
-        if "runscript" not in script:
-            raise ValueError("Unable to find main runscript function.")
-
-        script["runscript"]()
+    env["runscript"]()
 
     return dg.CURRENT_STATE
 
@@ -132,7 +132,7 @@ def main(
 
         fig.legend()
         if out_plot is None:
-            fig.show()
+            plt.show()
         else:
             fig.savefig(out_plot)
 
