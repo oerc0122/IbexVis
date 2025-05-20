@@ -4,6 +4,7 @@ Classes to manage runs.
 
 import math
 from collections.abc import Callable
+from dataclasses import dataclass
 from pkgutil import resolve_name
 
 RateFunc = Callable[[float, float], float]
@@ -11,7 +12,6 @@ RateType = float | RateFunc | str
 
 
 class Property:
-
     def __init__(
         self,
         name: str,
@@ -23,9 +23,11 @@ class Property:
         rate_up: RateType | None = None,
         rate_down: RateType | None = None,
         always_advance: bool = False,
+        units: str = "",
     ):
         self.name = name
         self.current = initial
+        self.units = units
 
         match rate, rate_up, rate_down:
             case _, None, None if rate is not None:
@@ -39,7 +41,7 @@ class Property:
         self.target = target
         self.validrange = validrange
         self.runcontrol = False
-        self.data = []
+        self.data = [initial]
 
     @property
     def current_rate(self) -> float:
@@ -116,3 +118,11 @@ class Property:
 
     def __repr__(self) -> str:
         return f"{self.name}({self.current=}, {self.target=}, {self.rate=})"
+
+
+@dataclass
+class CurrentState:
+    properties: dict[str, Property]
+    counts: list[tuple[float, float]]
+    run_variables: dict
+    counting: float | None = None

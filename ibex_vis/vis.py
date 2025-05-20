@@ -1,22 +1,22 @@
 """Main run script."""
 
-import argparse
+import importlib
 import itertools
 import json
+import logging
+import types
 from collections.abc import Sequence
 from pathlib import Path
-import importlib, types
 
 import matplotlib.pyplot as plt
 
-from ibex_vis import __version__
 from ibex_vis import dummy_genie as dg
-from ibex_vis.classes import Property
+from ibex_vis.classes import CurrentState, Property
 
 InputParamData = dict[str, float | Property] | Path
 
 
-def runner(script_file: Path, parameters: dict[str, Property]) -> dg.CurrentState:
+def runner(script_file: Path, parameters: dict[str, Property]) -> CurrentState:
     """Run a given script.
 
     Parameters:
@@ -24,22 +24,22 @@ def runner(script_file: Path, parameters: dict[str, Property]) -> dg.CurrentStat
         parameters (dict[str, Property]): Properties to use.
 
     Returns:
-        State (dg.CurrentState): State after run.
+        State (CurrentState): State after run.
 
     Raises:
         ValueError: No runscript function.
     """
-    dg.CURRENT_STATE = dg.CurrentState(properties=parameters, counts=[], run_variables={})
+    dg.CURRENT_STATE = CurrentState(properties=parameters, counts=[], run_variables={})
 
-    loader = importlib.machinery.SourceFileLoader('<user_script>', script_file)
+    loader = importlib.machinery.SourceFileLoader("<user_script>", script_file)
     src = loader.get_data(script_file).decode()
     if "runscript" not in src:
         raise ValueError("Unable to find main runscript function.")
     src = src.replace("genie_python", "ibex_vis.dummy_genie")
     src = src.replace("inst", "ibex_vis.dummy_inst")
     code = loader.source_to_code(src, script_file)
-    tmp_mod = types.ModuleType('UserScriptModule')
-    tmp_mod.__file__ = script_file
+    tmp_mod = types.ModuleType("UserScriptModule")
+    tmp_mod.__file__ = str(script_file)
     env = {**globals()}
     env.update(tmp_mod.__dict__)
     exec(code, env)
@@ -89,8 +89,10 @@ def properties_from_input(parameters: InputParamData) -> dict[str, Property]:
 def main(
     input_scripts: Path | Sequence[Path],
     parameters: InputParamData | Sequence[InputParamData],
+    *,
     plot: Sequence[str] = (),
     out_plot: Path | None = None,
+    loglevel: int = logging.WARNING,
 ) -> None:
     """Process input scripts into a property stream.
 
@@ -103,6 +105,8 @@ def main(
     Raises:
         FileNotFoundError: If script doesn't exist.
     """
+    logging.basicConfig(format="%(levelname)s: %(message)s", level=loglevel)
+
     if isinstance(input_scripts, Path):
         input_scripts = (input_scripts,)
 
@@ -125,6 +129,11 @@ def main(
         for name in to_plot:
             ax.plot(time, run.properties[name].data, label=name)
 
+        ax.set_xlabel(f"Time ({run.properties['time'].units})")
+        if len(to_plot) == 1:
+            prop = run.properties[to_plot[0]]
+            ax.set_ylabel(prop.name + (f" ({prop.units})" if prop.units else ""))
+
         for start, end in run.counts:
             if start is None or end is None:
                 continue
@@ -132,70 +141,6 @@ def main(
 
         fig.legend()
         if out_plot is None:
-            plt.show()
+            plt.show(block=True)
         else:
             fig.savefig(out_plot)
-
-
-def cli() -> None:
-    parser = argparse.ArgumentParser(
-        prog="Ibex Vis",
-        description="Visualise the results of an IBEX control script.",
-    )
-    parser.add_argument("FILES", nargs=argparse.REMAINDER, type=Path, help="Files to process")
-    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s v{__version__}")
-    parser.add_argument(
-        "-c",
-        "--config",
-        type=Path,
-        help="File containing beam configuration.",
-        required=True,
-    )
-    parser.add_argument(
-        "-p",
-        "--plot",
-        action="append",
-        help="Properties to plot",
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        type=Path,
-        help="File to write output, default: screen",
-        default=None,
-    )
-    parser.add_argument(
-        "-d",
-        "--dump",
-        action="store_true",
-        help="Dump default config file and exit.",
-    )
-
-    args = parser.parse_args()
-
-    if args.dump:
-        with args.config.open("w", encoding="utf-8") as out_file:
-            json.dump(
-                {
-                    "time": {
-                        "rate": 1.0,
-                        "always_advance": True,
-                    },
-                    "beam": {
-                        "rate": 127.0,
-                        "always_advance": True,
-                    },
-                    "events": {
-                        "rate": 1.0,
-                        "always_advance": True,
-                    },
-                },
-                out_file,
-            )
-        return
-
-    main(input_scripts=args.FILES, parameters=args.config, plot=args.plot, out_plot=args.output)
-
-
-if __name__ == "__main__":
-    cli()

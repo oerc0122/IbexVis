@@ -28,7 +28,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
 ]
-dependencies = ["matplotlib", "genie_python"]
+dependencies = ["matplotlib"]
 
 [project.optional-dependencies]
 docs = ["sphinx", "sphinx-rtd-theme", "sphinx-argparse>=0.4.0", "sphinx-autodoc-typehints"]
@@ -36,7 +36,7 @@ lint = ["ruff==0.11.*"]
 test = ["pytest==8.3.4", "pytest-cov==5.0.0"]
 
 [project.scripts]
-ibex_vis = "ibex_vis.vis:cli"
+ibex_vis = "ibex_vis.cli:cli"
 
 [project.urls]
 Homepage="https://github.com/oerc0122/IbexVis"
