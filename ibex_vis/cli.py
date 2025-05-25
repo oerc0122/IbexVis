@@ -1,10 +1,18 @@
 """Ibex vis CLI interface."""
-
 import argparse
+import json
+import logging
 from pathlib import Path
 
 from . import __version__
-from .vis import main
+from .vis import main, scan
+
+
+class LogAction(argparse.Action):
+    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+        super().__init__(option_strings, dest, **kwargs)
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, getattr(logging, values))
 
 
 def cli() -> None:
@@ -38,39 +46,29 @@ def cli() -> None:
         "-d",
         "--dump",
         action="store_true",
-        help="Dump default config file and exit.",
+        help="Dump to config file and exit. NB: Will overwrite --config argument!",
     )
     parser.add_argument(
         "-L",
         "--log",
+        action=LogAction,
         help="Verbose output",
         choices=("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"),
-        default="WARNING",
+        default=logging.WARNING,
     )
 
     args = parser.parse_args()
 
     if args.dump:
+        props = scan(input_scripts=args.FILES, loglevel=args.log)
+        out_props = {key: prop.to_dict() for key, prop in props.items()}
+
         with args.config.open("w", encoding="utf-8") as out_file:
+
             json.dump(
-                {
-                    "time": {
-                        "rate": 1.0,
-                        "always_advance": True,
-                        "units": "min",
-                    },
-                    "beam": {
-                        "rate": 1.0,
-                        "always_advance": True,
-                        "units": "µA/min",
-                    },
-                    "events": {
-                        "rate": 1.0,
-                        "always_advance": True,
-                        "units": "Mevents/min",
-                    },
-                },
+                out_props,
                 out_file,
+                indent=2,
             )
         return
 

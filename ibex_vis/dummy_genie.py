@@ -12,30 +12,45 @@ from ibex_vis.classes import CurrentState, Property
 class Abort(Exception): ...
 
 
-CURRENT_STATE: CurrentState = CurrentState({}, [], {})
+CURRENT_STATE: CurrentState = CurrentState({"time": Property("time", rate=1.)}, [], {})
+LOGGER = logging.getLogger(__name__)
+
+
+def log(message: str, *args: Any, level: int = logging.INFO, stacklevel: int = 3):
+    LOGGER.log(
+        level,
+        message,
+        *args,
+        stacklevel=stacklevel,
+        extra={"sim_time": int(CURRENT_STATE.properties["time"].current)},
+    )
 
 
 class genie:  # noqa:PLR0904
+    """Dummy class to emulate module."""
+
     @staticmethod
     def begin(*_: Never, **__: Never) -> None:
         if CURRENT_STATE.counting is not None:
-            logging.warning("`begin` without `end`")
+            log("`begin` without `end`", level=logging.WARNING)
 
+        log("Started counting")
         CURRENT_STATE.counting = CURRENT_STATE.properties["time"].current
 
     @staticmethod
     def end(*_: Never, **__: Never) -> None:
         if CURRENT_STATE.counting is None:
-            logging.warning("`end` without `begin`")
+            log("`end` without `begin`", level=logging.WARNING)
 
         CURRENT_STATE.counts.append(
             (CURRENT_STATE.counting, CURRENT_STATE.properties["time"].current),
         )
+        log("Finished counting")
         CURRENT_STATE.counting = None
 
     @staticmethod
     def cget(block: str) -> None:
-        logging.info(CURRENT_STATE.properties[block].current)
+        log("%s: %r", block, CURRENT_STATE.properties[block].current)
 
     @staticmethod
     def cset(
@@ -96,10 +111,18 @@ class genie:  # noqa:PLR0904
             current.target = val
             current.validrange = (lowlimit, highlimit)
             current.runcontrol = runcontrol
+            log(
+                "%s set to %s (%f, %f), run-controller: %s",
+                key,
+                val,
+                lowlimit,
+                highlimit,
+                runcontrol,
+            )
 
         if wait:
             for item in kwargs.items():
-                genie.waitfor(*item)
+                genie.waitfor(*item, stacklevel=4)
 
     @staticmethod
     def change(**params: str | int) -> None:
@@ -116,27 +139,30 @@ class genie:  # noqa:PLR0904
         Notes:
             It is possible to change more than one item at a time.
         """
+        stacklevel = params.pop("stacklevel", 3)
+        for key, val in params.items():
+            log("%s set to %r", key, val, stacklevel=stacklevel)
         CURRENT_STATE.run_variables.update(params)
 
     @staticmethod
     def change_title(title: str) -> None:
-        genie.change(title=title)
+        genie.change(title=title, stacklevel=4)
 
     @staticmethod
     def change_rb(rb: int) -> None:
-        genie.change(rb=rb)
+        genie.change(rb=rb, stacklevel=4)
 
     @staticmethod
     def change_period(period: int) -> None:
-        genie.change(period=period)
+        genie.change(period=period, stacklevel=4)
 
     @staticmethod
     def change_users(users: str) -> None:
-        genie.change(user=users)
+        genie.change(user=users, stacklevel=4)
 
     @staticmethod
     def enable_soft_periods(nperiods: int) -> None:
-        genie.change(nperiods=nperiods)
+        genie.change(nperiods=nperiods, stacklevel=4)
 
     @staticmethod
     def abort(*_: Never, **__: Never) -> Never:
@@ -147,17 +173,20 @@ class genie:  # noqa:PLR0904
         name: str,
         check_script: bool = True,
         warnings_as_error: bool = False,
-    ) -> None: ...  # TODO
+    ) -> None:
+        raise NotImplementedError("Do not support this operation")
 
     @staticmethod
     def pause(
         verbose: bool = False,
         immediate: bool = False,
         prepost: bool = True,
-    ) -> None: ...  # TODO
+    ) -> None:
+        raise NotImplementedError("Do not support this operation")
 
     @staticmethod
-    def resume(verbose: bool = False, prepost: bool = False) -> None: ...  # TODO
+    def resume(verbose: bool = False, prepost: bool = False) -> None:
+        raise NotImplementedError("Do not support this operation")
 
     @staticmethod
     def waitfor(
@@ -177,29 +206,31 @@ class genie:  # noqa:PLR0904
         mevents: float | None = None,
         early_exit: Callable[[], bool] | None = None,
         quiet: bool = False,
+        stacklevel: int = 3,
         **pars: float,
     ):
         """Interrupts execution until certain conditions are met.
 
         Parameters:
-            block (string, optional): the name of the block to wait for
-            value (float, optional): the block value to wait for
-            lowlimit (float, optional): wait for the block to be >= this value (numeric only)
-            highlimit (float, optional): wait for the block to be <= this value (numeric only)
-            maxwait (float, optional): wait no longer that the specified number of seconds
-            wait_all (bool, optional): wait for all conditions to be met
-                (e.g. a number of frames and an amount of uamps)
-            seconds (float, optional): wait for a specified number of seconds
-            minutes (float, optional): wait for a specified number of minutes
-            hours (float, optional): wait for a specified number of hours
-            time (string, optional): a quicker way of setting hours, minutes and seconds
-                (must be of format “HH:MM:SS”)
-            frames (int, optional): wait for a total number of good frames to be collected
-            raw_frames (int, optional): wait for a total number of raw frames to be collected
-            uamps (float, optional): wait for a total number of uamps to be received
-            mevents (float, optional): wait for a total number of millions of events to be collected
-            early_exit (lambda, optional): stop waiting if the function evaluates to True
-            quiet (bool, optional): suppress normal output messages to the console
+            block (string, optional): the name of the block to wait for.
+            value (float, optional): the block value to wait for.
+            lowlimit (float, optional): wait for the block to be >= this value (numeric only).
+            highlimit (float, optional): wait for the block to be <= this value (numeric only).
+            maxwait (float, optional): wait no longer that the specified number of seconds.
+            wait_all (bool, optional): wait for all conditions to be met.
+                (e.g. a number of frames and an amount of uamps).
+            seconds (float, optional): wait for a specified number of seconds.
+            minutes (float, optional): wait for a specified number of minutes.
+            hours (float, optional): wait for a specified number of hours.
+            time (string, optional): a quicker way of setting hours, minutes and seconds.
+                (must be of format “HH:MM:SS”).
+            frames (int, optional): wait for a total number of good frames to be collected.
+            raw_frames (int, optional): wait for a total number of raw frames to be collected.
+            uamps (float, optional): wait for a total number of uamps to be received.
+            mevents (float, optional): wait for a total number of millions of events to be collected.
+            early_exit (lambda, optional): stop waiting if the function evaluates to True.
+            quiet (bool, optional): suppress normal output messages to the console.
+            stacklevel (int, optional): dummy stack reporting.
         """
         if early_exit is not None:
             raise NotImplementedError("Cannot support `early_exit`")
@@ -228,73 +259,73 @@ class genie:  # noqa:PLR0904
 
         exit_cond = {}
 
+        log("Entered waitfor:", stacklevel=stacklevel)
         if total_time is not None:
 
-            def exit_cond_time():
+            def exit_cond_time() -> bool:
                 return curr_time >= total_time
 
-            logging.debug("time: %f", total_time)
+            log("  time: %f m", total_time, stacklevel=stacklevel)
             exit_cond["time"] = exit_cond_time
         if uamps is not None:
 
-            def exit_cond_amps():
+            def exit_cond_amps() -> bool:
                 return amps >= uamps
 
-            logging.debug("amps: %f", uamps)
+            log("  amps: %f μAmin", uamps, stacklevel=stacklevel)
             exit_cond["amps"] = exit_cond_amps
         if frames is not None:
 
-            def exit_cond_frames():
+            def exit_cond_frames() -> bool:
                 return frame >= frames
 
-            logging.debug("frames: %d", frames)
+            log("  frames: %d", frames, stacklevel=stacklevel)
             exit_cond["frames"] = exit_cond_frames
         if raw_frames is not None:
 
-            def exit_cond_raw_frames():
+            def exit_cond_raw_frames() -> bool:
                 return raw_frame >= raw_frames
 
-            logging.debug("raw_frames: %d", raw_frames)
+            log("  raw_frames: %d", raw_frames, stacklevel=stacklevel)
             exit_cond["raw_frames"] = exit_cond_raw_frames
         if mevents is not None:
 
-            def exit_cond_events():
+            def exit_cond_events() -> bool:
                 return events >= mevents
 
-            logging.debug("events: %d", mevents)
+            log("  events: %d mevents", mevents, stacklevel=stacklevel)
             exit_cond["events"] = exit_cond_events
 
         if block is not None:
             pars[block] = value
 
-        for block, value in pars.items():
-            curr: float = CURRENT_STATE.properties[block].current
+        if len(pars) > 1:
+            raise NotImplementedError(
+                "Do not currently support arbitrary `waitfor(param=value)` for multiple params."
+            )
 
-            if value is not None:
+        if pars:
+            blk, val = next(iter(pars.items()))
 
-                def exit_cond_value():
-                    return math.isclose(curr, value)
+            if highlimit is not None and lowlimit is not None:
 
-                logging.debug("%s: %d", block, value)
-                exit_cond[block] = exit_cond_value
+                def exit_cond_limits() -> bool:
+                    return lowlimit <= CURRENT_STATE.properties[blk].current <= highlimit
 
-            if lowlimit is not None:
+                log("  %d <= %s <= %d", lowlimit, blk, highlimit, stacklevel=stacklevel)
+                exit_cond[f"{blk}"] = exit_cond_limits
 
-                def exit_cond_lowlimit():
-                    return curr >= lowlimit
+            elif val is not None:
 
-                logging.debug("%s_low: %d", block, lowlimit)
-                exit_cond[f"{block}_low"] = exit_cond_lowlimit
+                def exit_cond_val() -> bool:
+                    return math.isclose(CURRENT_STATE.properties[blk].current, val)
 
-            if highlimit is not None:
+                log("  %s == %d", blk, val, stacklevel=stacklevel)
+                exit_cond[blk] = exit_cond_val
 
-                def exit_cond_highlimit():
-                    return curr <= highlimit
-
-                logging.debug("%s_high: %d", block, highlimit)
-                exit_cond[f"{block}_high"] = exit_cond_highlimit
 
         run_controllers = [prop for prop in CURRENT_STATE.properties.values() if prop.runcontrol]
+        log("  Runcontrollers are: %s", [x.name for x in run_controllers], stacklevel=stacklevel)
 
         while not stop_check(cond() for cond in exit_cond.values()):
             for prop in CURRENT_STATE.properties.values():
@@ -333,7 +364,7 @@ class genie:  # noqa:PLR0904
             >>> waitfor_time(hours=1, minutes=30, seconds=15)
             >>> waitfor_time(time="1:30:15")
         """
-        genie.waitfor(seconds=seconds, minutes=minutes, hours=hours, time=time, quiet=quiet)
+        genie.waitfor(seconds=seconds, minutes=minutes, hours=hours, time=time, quiet=quiet, stacklevel=4)
 
     @staticmethod
     def waitfor_uamps(uamps: float, quiet: bool = False) -> None:
@@ -346,7 +377,7 @@ class genie:  # noqa:PLR0904
         Example:
             >>> waitfor_uamps(115.5)
         """
-        genie.waitfor(uamps=uamps, quiet=quiet)
+        genie.waitfor(uamps=uamps, quiet=quiet, stacklevel=4)
 
     @staticmethod
     def waitfor_raw_frames(raw_frames: int, quiet: bool = False) -> None:
@@ -359,7 +390,7 @@ class genie:  # noqa:PLR0904
         Example:
             >>> waitfor_raw_frames(4000)
         """
-        genie.waitfor(frames=raw_frames, quiet=quiet)
+        genie.waitfor(frames=raw_frames, quiet=quiet, stacklevel=4)
 
     @staticmethod
     def waitfor_runstate(
@@ -383,7 +414,7 @@ class genie:  # noqa:PLR0904
             Wait for a run to exit the paused state:
             >>> waitfor_runstate("paused", onexit=True)
         """
-        # TODO
+        raise NotImplementedError("Do not support this operation")
 
     @staticmethod
     def waitfor_move(*blocks: str | None, **kwargs: int | None) -> None:
@@ -408,7 +439,7 @@ class genie:  # noqa:PLR0904
 
                 >>> waitfor_move("slit1", "slit2")
         """
-        # TODO
+        raise NotImplementedError("Do not support this operation")
 
     @staticmethod
     def waitfor_mevents(mevents: float, quiet: bool = False) -> None:
@@ -422,3 +453,131 @@ class genie:  # noqa:PLR0904
             >>> waitfor_mevents(0.0004)
         """
         genie.waitfor(mevents=mevents, quiet=quiet)
+
+class EvenFakerGenie(genie):
+    @staticmethod
+    def waitfor(
+        block: str | None = None,
+        value: float | None = None,
+        lowlimit: float | None = None,
+        highlimit: float | None = None,
+        maxwait: float | None = None,
+        wait_all: bool = False,
+        seconds: float | None = None,
+        minutes: float | None = None,
+        hours: float | None = None,
+        time: str | None = None,
+        frames: int | None = None,
+        raw_frames: int | None = None,
+        uamps: float | None = None,
+        mevents: float | None = None,
+        early_exit: Callable[[], bool] | None = None,
+        quiet: bool = False,
+        stacklevel: int = 3,
+        **pars: float,
+    ):
+        """Interrupts execution until certain conditions are met.
+
+        Parameters:
+            block (string, optional): the name of the block to wait for
+            value (float, optional): the block value to wait for
+            lowlimit (float, optional): wait for the block to be >= this value (numeric only)
+            highlimit (float, optional): wait for the block to be <= this value (numeric only)
+            maxwait (float, optional): wait no longer that the specified number of seconds
+            wait_all (bool, optional): wait for all conditions to be met
+                (e.g. a number of frames and an amount of uamps)
+            seconds (float, optional): wait for a specified number of seconds
+            minutes (float, optional): wait for a specified number of minutes
+            hours (float, optional): wait for a specified number of hours
+            time (string, optional): a quicker way of setting hours, minutes and seconds
+                (must be of format “HH:MM:SS”)
+            frames (int, optional): wait for a total number of good frames to be collected
+            raw_frames (int, optional): wait for a total number of raw frames to be collected
+            uamps (float, optional): wait for a total number of uamps to be received
+            mevents (float, optional): wait for a total number of millions of events to be collected
+            early_exit (lambda, optional): stop waiting if the function evaluates to True
+            quiet (bool, optional): suppress normal output messages to the console
+        """
+        if early_exit is not None:
+            raise NotImplementedError("Cannot support `early_exit`")
+
+        if time is not None:
+            hours, minutes, seconds = map(float, time.split(":"))
+
+        total_time = None
+
+        if any((hours, minutes, seconds)):
+            hours = hours or 0
+            minutes = minutes or 0
+            seconds = seconds or 0
+            total_time = hours * 60 + minutes + seconds / 60
+
+        if uamps:
+            uamps *= 60
+
+        log("Entered waitfor", stacklevel=stacklevel)
+        if total_time is not None:
+            log("  time: %f", total_time, stacklevel=stacklevel)
+        if uamps is not None:
+            log("  amps: %f", uamps, stacklevel=stacklevel)
+        if frames is not None:
+            log("  frames: %d", frames, stacklevel=stacklevel)
+        if raw_frames is not None:
+            log("  raw_frames: %d", raw_frames, stacklevel=stacklevel)
+        if mevents is not None:
+            log("  events: %d", mevents, stacklevel=stacklevel)
+
+        if block is not None:
+            pars[block] = value
+
+        for blk, val in pars.items():
+            if value is not None:
+                log("  %s: %d", blk, val, stacklevel=stacklevel)
+            if lowlimit is not None:
+                log("  %s_low: %d", blk, lowlimit, stacklevel=stacklevel)
+            if highlimit is not None:
+                log("  %s_high: %d", blk, highlimit, stacklevel=stacklevel)
+
+        run_controllers = [prop for prop in CURRENT_STATE.properties.values() if prop.runcontrol]
+        log("  Runcontrollers are: %s", [x.name for name in run_controllers], stacklevel=stacklevel)
+
+    @staticmethod
+    def cset(
+        *args: Any,
+        runcontrol: bool | None = None,
+        lowlimit: float | None = None,
+        highlimit: float | None = None,
+        wait: bool | None = None,
+        verbose: bool | None = None,
+        **kwargs: float,
+    ) -> None:
+        """Sets the setpoint and runcontrol settings for blocks.
+
+        Parameters:
+            runcontrol (bool, optional): whether to set runcontrol for this block
+            wait (bool, optional): pause execution until setpoint is reached (one block only)
+            lowlimit (float, optional): the lower limit for runcontrol or waiting
+            highlimit (float, optional): the upper limit for runcontrol or waiting
+            verbose (bool, optional): report what the new block state is as a result of the command
+
+        Note:
+            cannot use wait and runcontrol in the same command
+        """
+        if args:
+            kwargs |= dict(zip(args[::2], args[1::2], strict=True))
+
+        for key, val in kwargs.items():
+            if key not in CURRENT_STATE.properties:
+                CURRENT_STATE.properties[key] = Property("key", rate=1.)
+            log(
+                "%s set to %s (%f, %f), run-controller: %s",
+                key,
+                val,
+                lowlimit,
+                highlimit,
+                runcontrol,
+            )
+
+        if wait:
+            for item in kwargs.items():
+                genie.waitfor(*item, stacklevel=4)

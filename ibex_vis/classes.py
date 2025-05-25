@@ -43,6 +43,19 @@ class Property:
         self.runcontrol = False
         self.data = [initial]
 
+    def to_dict(self) -> dict:
+        """Convert to dict.
+
+        Returns:
+            out (dict): Property as dict.
+        """
+        return {
+            "initial": self.current,
+            "rate_up": self.rate_up,
+            "rate_down": self.rate_up,
+            "units": self.units,
+        }
+
     @property
     def current_rate(self) -> float:
         if self.target is None:
