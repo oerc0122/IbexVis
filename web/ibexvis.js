@@ -40,6 +40,20 @@ const genshapes = (runs,) => runs.map((d) => {
   };
 });
 
+// Script upload
+document.getElementById("upload-button").onclick = function () {
+  const filedata = document.getElementById("upload").files;
+  if (filedata.length !== 1) return;
+
+  console.log("File selected: ", filedata[0].name);
+  const reader = new FileReader();
+  reader.readAsText(filedata[0]);
+
+  reader.addEventListener("load", () => {
+    document.getElementById("scriptpy").value = reader.result;
+  });
+};
+
 document.getElementById("calcbutton").onclick = function calcVis() {
   const scriptpy = document.getElementById("scriptpy").value;
   pyodide.FS.writeFile("script.py", scriptpy);
