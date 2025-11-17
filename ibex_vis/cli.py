@@ -1,6 +1,7 @@
 """Ibex vis CLI interface."""
 
 import argparse
+import json
 from pathlib import Path
 
 from . import __version__
@@ -62,7 +63,7 @@ def cli() -> None:
                     "beam": {
                         "rate": 1.0,
                         "always_advance": True,
-                        "units": "µA/min",
+                        "units": "μA/min",
                     },
                     "events": {
                         "rate": 1.0,

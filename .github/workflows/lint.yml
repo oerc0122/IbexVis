@@ -1,0 +1,45 @@
+name: Lint
+
+on:
+  push:
+
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint_vermin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install vermin
+        run: python -m pip install vermin
+
+      - name: Run Vermin
+        run: vermin -t=3.10 --lint --quiet --no-parse-comments ibex_vis
+
+  lint_format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/ruff-action@v3
+        with:
+          src: "./ibex_vis"
+          args: "format --check"
+          version: "0.14.2"
+
+  lint_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/ruff-action@v3
+        with:
+          src: "./ibex_vis"
+          args: "check --ignore FIX002"
+          version: "0.14.2"
