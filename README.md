@@ -1,5 +1,13 @@
 # IbexVis
-Visualiser for IBEX runs
+Visualiser for IBEX runs.
+
+## Web Interface
+
+A web version of the visualiser for IBEX (genie-python) scripts is available at:
+
+[https://oerc0122.github.io/IbexVis](https://oerc0122.github.io/IbexVis)
+
+By Duc Le (@mducle)
 
 ## Installation
 
