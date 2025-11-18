@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class Abort(Exception): ...
 
 
-CURRENT_STATE: CurrentState = CurrentState({}, [], {})
+CURRENT_STATE: CurrentState = CurrentState.empty()
 
 
 class genie:  # noqa: PLR0904
@@ -283,6 +283,10 @@ class genie:  # noqa: PLR0904
 
         run_controllers = [prop for prop in CURRENT_STATE.properties.values() if prop.runcontrol]
 
+        last_record = False
+        start_count = []
+        stop_count = []
+
         while not stop_check(cond() for cond in exit_cond.values()):
             for prop in CURRENT_STATE.properties.values():
                 prop.advance()
@@ -290,13 +294,28 @@ class genie:  # noqa: PLR0904
             curr_time += CURRENT_STATE.properties["time"].current_rate
             raw_frame += 1
 
-            if not run_controllers or all(map(Property.inrange, run_controllers)):
+            record = all(map(Property.inrange, run_controllers))
+
+            if record:
                 amps += CURRENT_STATE.properties["beam"].current_rate
                 events += CURRENT_STATE.properties["events"].current_rate
                 frame += 1
 
+                if record != last_record:
+                    start_count.append(CURRENT_STATE.properties["time"].current)
+
+            elif record != last_record:
+                stop_count.append(CURRENT_STATE.properties["time"].current)
+
+            last_record = record
+
             if maxwait and curr_time >= maxwait:
                 break
+
+        if last_record:
+            stop_count.append(CURRENT_STATE.properties["time"].current)
+
+        CURRENT_STATE.records.extend(zip(start_count, stop_count, strict=True))
 
     @staticmethod
     def waitfor_time(

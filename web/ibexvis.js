@@ -23,7 +23,7 @@ const formdata = (time, propname, datavec) => [...propname].map((_, c) => {
   return {x:time, y:datavec[c], xaxis:'x'+(c+1), yaxis:'y'+(c+1), type:'scatter', name:propname[c]};
 });
 
-const genshapes = (runs,) => runs.map((d) => {
+const genshapes = (runs, colour) => runs.map((d) => {
   return {
     type: 'rect',
     // x-reference is assigned to the x-values
@@ -34,7 +34,7 @@ const genshapes = (runs,) => runs.map((d) => {
     x1: d[1],
     y0: 0,
     y1: 1,
-    fillcolor: '#00d300',
+    fillcolor: colour,
     opacity: 0.2,
     line: {width: 0}
   };
@@ -67,13 +67,16 @@ document.getElementById("calcbutton").onclick = function calcVis() {
       run = runner("script.py", properties_from_input(Path("config.json")))
       props = run.properties.keys() - {"time"}
       time = run.properties["time"].data
-      (time, props, [run.properties[name].data for name in props], run.counts)
+      (time, props, [run.properties[name].data for name in props], run.counts, run.records)
     `).toJs();
   } catch(err) {
     plotdiv.innerHTML = "<pre>" + err + "</pre>";
   }
+
+  var records = genshapes(rundata[3], '#00d300').concat(genshapes(rundata[4], '#d30000'));
+
   if (rundata) {
-    const layout = { grid: {rows: rundata[2].length, columns:1, pattern:'independent'}, shapes: genshapes(rundata[3]) };
+    const layout = { grid: {rows: rundata[2].length, columns:1, pattern:'independent'}, shapes: records };
     const data = formdata(rundata[0], Array.from(rundata[1]), rundata[2]);
     Plotly.newPlot(plotdiv, data, layout);
   }
