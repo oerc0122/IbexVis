@@ -5,7 +5,37 @@ import json
 from pathlib import Path
 
 from . import __version__
-from .vis import main
+from .vis import main, scan
+
+DEFAULT_PROPERTIES = {
+    "time": {
+        "rate": 1.0,
+        "always_advance": True,
+        "units": "min",
+    },
+    "beam": {
+        "rate": 1.0,
+        "always_advance": True,
+        "units": "μA",
+    },
+    "events": {
+        "rate": 1.0,
+        "always_advance": True,
+        "units": "Mevents",
+    },
+}
+
+
+def dump(args: argparse.Namespace) -> None:
+    """Dump config file.
+
+    Parameters:
+        args (argparse.Namespace): Args to use.
+    """
+    blocks = {block: {"rate": 1.0, "units": ""} for file in args.FILES for block in scan(file)}
+
+    with args.config.open("w", encoding="utf-8") as out_file:
+        json.dump(DEFAULT_PROPERTIES | blocks, out_file, indent=2)
 
 
 def cli() -> None:
@@ -52,27 +82,7 @@ def cli() -> None:
     args = parser.parse_args()
 
     if args.dump:
-        with args.config.open("w", encoding="utf-8") as out_file:
-            json.dump(
-                {
-                    "time": {
-                        "rate": 1.0,
-                        "always_advance": True,
-                        "units": "min",
-                    },
-                    "beam": {
-                        "rate": 1.0,
-                        "always_advance": True,
-                        "units": "μA/min",
-                    },
-                    "events": {
-                        "rate": 1.0,
-                        "always_advance": True,
-                        "units": "Mevents/min",
-                    },
-                },
-                out_file,
-            )
+        dump(args)
         return
 
     main(
