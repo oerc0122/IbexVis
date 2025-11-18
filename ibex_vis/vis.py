@@ -17,6 +17,11 @@ from ibex_vis.classes import CurrentState, Property
 InputParamData = dict[str, float | Property] | Path
 
 
+def reset_state() -> None:
+    """Reset the runner state."""
+    dg.CURRENT_STATE = CurrentState.empty()
+
+
 def runner(script_file: Path, parameters: dict[str, Property]) -> CurrentState:
     """Run a given script.
 
@@ -30,7 +35,8 @@ def runner(script_file: Path, parameters: dict[str, Property]) -> CurrentState:
     Raises:
         ValueError: No runscript function.
     """
-    dg.CURRENT_STATE = CurrentState(properties=parameters, counts=[], run_variables={})
+    reset_state()
+    dg.CURRENT_STATE.properties = parameters
 
     loader = importlib.machinery.SourceFileLoader("<user_script>", script_file)
     src = loader.get_data(script_file).decode()
@@ -168,7 +174,12 @@ def main(
         for start, end in run.counts:
             if start is None or end is None:
                 continue
-            ax.axvspan(start, end, alpha=0.25, color="green")
+            ax.axvspan(start, end, alpha=0.2, color="green")
+
+        for start, end in run.records:
+            if start is None or end is None:
+                continue
+            ax.axvspan(start, end, alpha=0.2, color="red")
 
         fig.legend()
         if out_plot is None:

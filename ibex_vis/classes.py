@@ -2,6 +2,8 @@
 Classes to manage runs.
 """
 
+from __future__ import annotations
+
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -167,5 +169,10 @@ class Check:
 class CurrentState:
     properties: dict[str, Property]
     counts: list[tuple[float, float]]
+    records: list[tuple[float, float]]
     run_variables: dict
     counting: float | None = None
+
+    @classmethod
+    def empty(cls) -> CurrentState:
+        return cls(properties={}, counts=[], records=[], run_variables={})
