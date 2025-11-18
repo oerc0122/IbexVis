@@ -1,5 +1,6 @@
 """Main run script."""
 
+import ast
 import importlib
 import itertools
 import json
@@ -84,6 +85,36 @@ def properties_from_input(parameters: InputParamData) -> dict[str, Property]:
         ) from err
 
     return out_dict
+
+
+def scan(script_file: Path) -> set[str]:
+    """Scan script for ``cset`` (block) vars.
+
+    Parameters:
+        script_file (Path): File to scan.
+
+    Returns:
+        blocks (set[str]): Present block variables.
+
+    Notes:
+        Assumes block names are given as literals.
+    """
+    tree = ast.parse(script_file.read_text(encoding="utf-8"))
+    CSET_KW = {"runcontrol", "lowlimit", "highlimit", "wait", "verbose"}
+
+    blocks = set()
+
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "cset"
+        ):
+            blocks |= {arg.value for arg in node.args[::2] if isinstance(arg, ast.Constant)} | {
+                kw.arg for kw in node.keywords
+            } - CSET_KW
+
+    return blocks
 
 
 def main(
