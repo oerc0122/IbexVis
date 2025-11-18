@@ -1,12 +1,13 @@
 """Fake genie injection."""
 
 import logging
-import math
 from collections.abc import Callable
 from typing import Any
 from typing import NoReturn as Never
 
-from ibex_vis.classes import CurrentState, Property
+from ibex_vis.classes import Check, CurrentState, Property
+
+logger = logging.getLogger(__name__)
 
 
 class Abort(Exception): ...
@@ -15,18 +16,18 @@ class Abort(Exception): ...
 CURRENT_STATE: CurrentState = CurrentState({}, [], {})
 
 
-class genie:  # noqa:PLR0904
+class genie:  # noqa: PLR0904
     @staticmethod
     def begin(*_: Never, **__: Never) -> None:
         if CURRENT_STATE.counting is not None:
-            logging.warning("`begin` without `end`")
+            logger.warning("`begin` without `end`")
 
         CURRENT_STATE.counting = CURRENT_STATE.properties["time"].current
 
     @staticmethod
     def end(*_: Never, **__: Never) -> None:
         if CURRENT_STATE.counting is None:
-            logging.warning("`end` without `begin`")
+            logger.warning("`end` without `begin`")
 
         CURRENT_STATE.counts.append(
             (CURRENT_STATE.counting, CURRENT_STATE.properties["time"].current),
@@ -35,7 +36,7 @@ class genie:  # noqa:PLR0904
 
     @staticmethod
     def cget(block: str) -> None:
-        logging.info(CURRENT_STATE.properties[block].current)
+        logger.info(CURRENT_STATE.properties[block].current)
 
     @staticmethod
     def cset(
@@ -178,7 +179,7 @@ class genie:  # noqa:PLR0904
         early_exit: Callable[[], bool] | None = None,
         quiet: bool = False,
         **pars: float,
-    ):
+    ) -> None:
         """Interrupts execution until certain conditions are met.
 
         Parameters:
@@ -230,69 +231,55 @@ class genie:  # noqa:PLR0904
 
         if total_time is not None:
 
-            def exit_cond_time():
+            def exit_cond_time() -> bool:
                 return curr_time >= total_time
 
-            logging.debug("time: %f", total_time)
+            logger.debug("time: %f", total_time)
             exit_cond["time"] = exit_cond_time
         if uamps is not None:
 
-            def exit_cond_amps():
+            def exit_cond_amps() -> bool:
                 return amps >= uamps
 
-            logging.debug("amps: %f", uamps)
+            logger.debug("amps: %f", uamps)
             exit_cond["amps"] = exit_cond_amps
         if frames is not None:
 
-            def exit_cond_frames():
+            def exit_cond_frames() -> bool:
                 return frame >= frames
 
-            logging.debug("frames: %d", frames)
+            logger.debug("frames: %d", frames)
             exit_cond["frames"] = exit_cond_frames
         if raw_frames is not None:
 
-            def exit_cond_raw_frames():
+            def exit_cond_raw_frames() -> bool:
                 return raw_frame >= raw_frames
 
-            logging.debug("raw_frames: %d", raw_frames)
+            logger.debug("raw_frames: %d", raw_frames)
             exit_cond["raw_frames"] = exit_cond_raw_frames
         if mevents is not None:
 
-            def exit_cond_events():
+            def exit_cond_events() -> bool:
                 return events >= mevents
 
-            logging.debug("events: %d", mevents)
+            logger.debug("events: %d", mevents)
             exit_cond["events"] = exit_cond_events
 
-        if block is not None:
+        if block is not None and value is not None:
             pars[block] = value
 
-        for block, value in pars.items():
-            curr: float = CURRENT_STATE.properties[block].current
+        for blk, val in pars.items():
+            if val is not None:
+                logger.debug("%s: %d", blk, val)
+                exit_cond[blk] = Check(CURRENT_STATE.properties[blk], val)
 
-            if value is not None:
-
-                def exit_cond_value():
-                    return math.isclose(curr, value)
-
-                logging.debug("%s: %d", block, value)
-                exit_cond[block] = exit_cond_value
-
-            if lowlimit is not None:
-
-                def exit_cond_lowlimit():
-                    return curr >= lowlimit
-
-                logging.debug("%s_low: %d", block, lowlimit)
-                exit_cond[f"{block}_low"] = exit_cond_lowlimit
-
-            if highlimit is not None:
-
-                def exit_cond_highlimit():
-                    return curr <= highlimit
-
-                logging.debug("%s_high: %d", block, highlimit)
-                exit_cond[f"{block}_high"] = exit_cond_highlimit
+            if lowlimit is not None or highlimit is not None:
+                logger.debug("%s_low: %d", blk, lowlimit)
+                logger.debug("%s_high: %d", blk, highlimit)
+                exit_cond[f"{blk}_low"] = Check(
+                    CURRENT_STATE.properties[blk],
+                    (lowlimit, highlimit),
+                )
 
         run_controllers = [prop for prop in CURRENT_STATE.properties.values() if prop.runcontrol]
 
@@ -325,7 +312,8 @@ class genie:  # noqa:PLR0904
             seconds (float, optional): wait for a specified number of seconds
             minutes (float, optional): wait for a specified number of minutes
             hours (float, optional): wait for a specified number of hours
-            time (string, optional): a quicker way of setting hours, minutes and seconds (must be of format “HH:MM:SS”)
+            time (string, optional): a quicker way of setting hours, minutes and seconds
+                                     (must be of format “HH:MM:SS”)
             quiet (bool, optional): suppress normal output messages to the console
 
         Examples:
@@ -389,24 +377,27 @@ class genie:  # noqa:PLR0904
     def waitfor_move(*blocks: str | None, **kwargs: int | None) -> None:
         """Wait for all motion or specific motion to complete.
 
-            If block names are supplied then it will only wait for those to stop moving. Otherwise, it will wait for all motion to stop.
+        If block names are supplied then it will only wait for those to stop moving. Otherwise,
+        it will wait for all motion to stop.
 
-            Parameters:
-                blocks (string, multiple, optional): the names of specific blocks to wait for
-                start_timeout (int, optional): the number of seconds to wait for the movement to begin (    @staticmethod
-        default = 2 seconds)
-                move_timeout (int, optional): the maximum number of seconds to wait for motion to stop
+        Parameters:
+            blocks (string, multiple, optional): the names of specific blocks to wait for
+            start_timeout (int, optional): the number of seconds to wait
+                for the movement to begin
+                (default = 2 seconds)
+            move_timeout (int, optional): the maximum number of seconds
+                to wait for motion to stop
 
-            Examples:
-                Wait for all motors to stop moving:
+        Examples:
+            Wait for all motors to stop moving:
 
-                >>> waitfor_move()
-                Wait for all motors to stop moving with a timeout of 30 seconds:
+            >>> waitfor_move()
+            Wait for all motors to stop moving with a timeout of 30 seconds:
 
-                >>> waitfor_move(move_timeout=30)
-                Wait for only slit1 and slit2 motors to stop moving:
+            >>> waitfor_move(move_timeout=30)
+            Wait for only slit1 and slit2 motors to stop moving:
 
-                >>> waitfor_move("slit1", "slit2")
+            >>> waitfor_move("slit1", "slit2")
         """
         # TODO
 
