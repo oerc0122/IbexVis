@@ -8,6 +8,7 @@ from typing import NoReturn as Never
 from ibex_vis.classes import Check, CurrentState, Property
 
 logger = logging.getLogger(__name__)
+MAX_TIME = 10 * 24 * 60  # 10 days
 
 
 class Abort(Exception): ...
@@ -201,6 +202,9 @@ class genie:  # noqa: PLR0904
             mevents (float, optional): wait for a total number of millions of events to be collected
             early_exit (lambda, optional): stop waiting if the function evaluates to True
             quiet (bool, optional): suppress normal output messages to the console
+
+        Raises:
+            ValueError: If time-limit expired.
         """
         if early_exit is not None:
             raise NotImplementedError("Cannot support `early_exit`")
@@ -287,11 +291,16 @@ class genie:  # noqa: PLR0904
         start_count = []
         stop_count = []
 
+        time_prop = CURRENT_STATE.properties["time"]
+
         while not stop_check(cond() for cond in exit_cond.values()):
             for prop in CURRENT_STATE.properties.values():
                 prop.advance()
 
-            curr_time += CURRENT_STATE.properties["time"].current_rate
+            if time_prop.current > MAX_TIME:
+                raise ValueError(f"Job timeout: Exceeded {MAX_TIME} min, possible invalid script")
+
+            curr_time += time_prop.current_rate
             raw_frame += 1
 
             record = all(map(Property.inrange, run_controllers))
@@ -302,10 +311,10 @@ class genie:  # noqa: PLR0904
                 frame += 1
 
                 if record != last_record:
-                    start_count.append(CURRENT_STATE.properties["time"].current)
+                    start_count.append(time_prop.current)
 
             elif record != last_record:
-                stop_count.append(CURRENT_STATE.properties["time"].current)
+                stop_count.append(time_prop.current)
 
             last_record = record
 
@@ -313,7 +322,7 @@ class genie:  # noqa: PLR0904
                 break
 
         if last_record:
-            stop_count.append(CURRENT_STATE.properties["time"].current)
+            stop_count.append(time_prop.current)
 
         CURRENT_STATE.records.extend(zip(start_count, stop_count, strict=True))
 
