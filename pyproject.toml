@@ -8,9 +8,9 @@ authors = [{name = "Jacob Wilkins", email = "jacob.wilkins@stfc.ac.uk"}]
 dynamic = ["version"]
 requires-python = ">= 3.10"
 readme = "README.rst"
-description = "A package for extracting information from castep outputs"
-keywords = ["castep", "dft", "parser"]
-license = {text = "BSD-3-Clause"}
+description = "A package for visually verifying IBEX scripts."
+keywords = ["IBEX", "neutron scattering"]
+license = {text = "MIT"}
 
 
 classifiers = [
@@ -20,13 +20,13 @@ classifiers = [
   "Topic :: File Formats :: JSON",
   "Topic :: Scientific/Engineering :: Physics",
 
-  "License :: OSI Approved :: BSD License",
+  "License :: OSI Approved :: MIT License",
 
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
 ]
 dependencies = ["matplotlib"]
 
@@ -54,7 +54,6 @@ packages = ["ibex_vis"]
 [tool.ruff]
 line-length = 100
 indent-width = 4
-target-version = "py310"
 
 # Exclude a variety of commonly ignored directories.
 extend-exclude = [

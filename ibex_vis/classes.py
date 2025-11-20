@@ -45,6 +45,27 @@ class Property:
         self.runcontrol = False
         self.data = [initial]
 
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.name,
+                self.current,
+                self.units,
+                self.always_advance,
+                self.target,
+                self.validrange,
+                self._rate_up,
+                self._rate_down,
+                tuple(self.data),
+            )
+        )
+
+    def __eq__(self, other: Property) -> bool:
+        return all(
+            getattr(self, prop) == getattr(other, prop)
+            for prop in ("name", "rate_up", "rate_down", "always_advance", "units")
+        )
+
     @property
     def current_rate(self) -> float:
         if self.target is None:

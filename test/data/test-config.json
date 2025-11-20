@@ -1,0 +1,23 @@
+{
+    "time": {
+        "rate": 1.0,
+        "always_advance": true,
+        "units": "min"
+    },
+    "beam": {
+        "rate": 127.0,
+        "always_advance": true,
+        "units": "μA"
+    },
+    "events": {
+        "rate": 1.0,
+        "always_advance": true,
+        "units": "Mevents"
+    },
+    "T_head": {
+        "initial": 300.0,
+        "rate_up": 10.0,
+        "rate_down": -10.0,
+        "units": "K"
+    }
+}
