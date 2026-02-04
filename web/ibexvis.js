@@ -64,7 +64,8 @@ document.getElementById("calcbutton").onclick = function calcVis() {
   try {
     rundata = pyodide.runPython(`
       from ibex_vis.vis import runner, properties_from_input, Path
-      run = runner("script.py", properties_from_input(Path("config.json")))
+      run = runner("script.py", properties_from_input(Path("config.json")),
+                   dummies={"genie_python": "ibex_vis.dummy_genie", "inst": "ibex_vis.dummy_inst"})
       props = run.properties.keys() - {"time"}
       time = run.properties["time"].data
       (time, props, [run.properties[name].data for name in props], run.counts, run.records)
