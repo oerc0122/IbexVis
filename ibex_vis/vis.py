@@ -1,20 +1,27 @@
 """Main run script."""
 
+from __future__ import annotations
+
 import ast
 import importlib
+import importlib.util
 import itertools
 import json
 import logging
-import types
-from collections.abc import Sequence
+import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, TypeAlias
+from unittest.mock import patch
 
 import matplotlib.pyplot as plt
 
 from ibex_vis import dummy_genie as dg
 from ibex_vis.classes import CurrentState, Property
 
-InputParamData = dict[str, float | Property] | Path
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+
+    InputParamData: TypeAlias = dict[str, dict[str, float] | Property] | Path
 
 
 def reset_state() -> None:
@@ -22,36 +29,48 @@ def reset_state() -> None:
     dg.CURRENT_STATE = CurrentState.empty()
 
 
-def runner(script_file: Path, parameters: dict[str, Property]) -> CurrentState:
+def runner(
+    script_file: Path,
+    parameters: dict[str, Property],
+    *,
+    dummies: dict[str, str],
+) -> CurrentState:
     """Run a given script.
 
     Parameters:
         script_file (Path): Script to run.
         parameters (dict[str, Property]): Properties to use.
+        dummies (dict[str, str]): Modules to replace.
 
     Returns:
         State (CurrentState): State after run.
 
     Raises:
         ValueError: No runscript function.
+        ImportError: Import failure.
     """
     reset_state()
     dg.CURRENT_STATE.properties = parameters
 
-    loader = importlib.machinery.SourceFileLoader("<user_script>", script_file)
-    src = loader.get_data(script_file).decode()
-    if "runscript" not in src:
-        raise ValueError("Unable to find main runscript function.")
-    src = src.replace("genie_python", "ibex_vis.dummy_genie")
-    src = src.replace("inst", "ibex_vis.dummy_inst")
-    code = loader.source_to_code(src, script_file)
-    tmp_mod = types.ModuleType("UserScriptModule")
-    tmp_mod.__file__ = str(script_file)
-    env = {**globals()}
-    env.update(tmp_mod.__dict__)
-    exec(code, env)
+    # Ensure dummy modules are available
+    try:
+        replace = {key: importlib.import_module(dummy) for key, dummy in dummies.items()}
+    except ImportError as err:
+        raise ImportError("Unable to import dummy modules") from err
 
-    env["runscript"]()
+    spec = importlib.util.spec_from_file_location("__user_script__", script_file)
+    if spec is None:
+        raise ImportError(f"{script_file} is not valid for import.")
+
+    module = importlib.util.module_from_spec(spec)
+
+    with patch.dict(sys.modules, **replace, __user_script__=module):
+        spec.loader.exec_module(module)
+
+        if not hasattr(module, "runscript"):
+            raise ValueError(f"{script_file} does not contain `runscript`")
+
+        module.runscript()
 
     return dg.CURRENT_STATE
 
@@ -124,25 +143,30 @@ def scan(script_file: Path) -> set[str]:
 
 
 def main(
-    input_scripts: Path | Sequence[Path],
-    parameters: InputParamData | Sequence[InputParamData],
+    input_scripts: Path | Iterable[Path],
+    parameters: InputParamData | Iterable[InputParamData],
     *,
     plot: Sequence[str] = (),
     out_plot: Path | None = None,
     loglevel: int = logging.WARNING,
+    dummies: dict[str, str] | None = None,
 ) -> None:
     """Process input scripts into a property stream.
 
     Parameters:
-        input_scripts (Path | Sequence[Path]): Scripts to process.
-        parameters (InputParamData | Sequence[InputParamData]): Initial configuration parameters.
+        input_scripts (Path or Iterable[Path]): Scripts to process.
+        parameters (InputParamData or Iterable[InputParamData]): Initial configuration parameters.
         plot (Sequence[str]): Variables to plot.
         out_plot (Path, optional): File to write plot to.
+        dummies (dict[str, str], optional): Modules to replace.
 
     Raises:
         FileNotFoundError: If script doesn't exist.
     """
     logging.basicConfig(format="%(levelname)s: %(message)s", level=loglevel)
+
+    if dummies is None:
+        dummies = {"genie_python": "ibex_vis.dummy_genie"}
 
     if isinstance(input_scripts, Path):
         input_scripts = (input_scripts,)
@@ -156,7 +180,7 @@ def main(
         if not script.is_file():
             raise FileNotFoundError(f"{script} is not a file.")
 
-        run = runner(script, params)
+        run = runner(script, params, dummies=dummies)
 
         to_plot = plot or (run.properties.keys() - {"time"})
 
@@ -168,7 +192,7 @@ def main(
 
         ax.set_xlabel(f"Time ({run.properties['time'].units})")
         if len(to_plot) == 1:
-            prop = run.properties[to_plot[0]]
+            prop = run.properties[next(iter(to_plot))]
             ax.set_ylabel(prop.name + (f" ({prop.units})" if prop.units else ""))
 
         for start, end in run.counts:

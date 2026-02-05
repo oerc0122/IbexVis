@@ -10,6 +10,7 @@ DATA_DIR = Path(__file__).parent / "data"
 
 TEST_SCRIPT = (DATA_DIR / "test-script.genie").read_text(encoding="utf-8")
 
+
 @pytest.fixture
 def properties():
     return {
@@ -35,7 +36,11 @@ def test_runner(tmp_path, properties):
     script_file = tmp_path / "test_script.py"
     script_file.write_text(TEST_SCRIPT, encoding="utf-8")
 
-    run = runner(script_file, properties)
+    run = runner(
+        script_file,
+        properties,
+        dummies={"genie_python": "ibex_vis.dummy_genie", "inst": "ibex_vis.dummy_inst"},
+    )
     print(run)
 
     assert run.properties["time"].current == 738.0
@@ -52,4 +57,8 @@ def test_runner_bailout(tmp_path, properties):
     script_file.write_text(mod_script, encoding="utf-8")
 
     with pytest.raises(ValueError, match="Exceeded"):
-        runner(script_file, properties)
+        runner(
+            script_file,
+            properties,
+            dummies={"genie_python": "ibex_vis.dummy_genie", "inst": "ibex_vis.dummy_inst"},
+        )
