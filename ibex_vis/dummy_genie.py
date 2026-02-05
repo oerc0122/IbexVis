@@ -441,3 +441,35 @@ class genie:  # noqa: PLR0904
             >>> waitfor_mevents(0.0004)
         """
         genie.waitfor(mevents=mevents, quiet=quiet)
+
+    @staticmethod
+    def set_pv(name: str, value: Any, wait: bool = False, is_local: bool = False) -> None:
+        """
+        Set the value for the specified PV.
+
+        Args:
+            name (string): the PV name
+            value: the new value to set
+            wait (bool, optional): whether to wait until the value
+                has been received by the hardware
+            is_local (bool, optional): whether to automatically
+                prepend the local inst prefix to the PV name
+        """
+
+    def get_pv(
+        name: str, to_string: bool = False, is_local: bool = False, use_numpy: bool = False
+    ) -> Any:
+        """
+        Get the value for the specified PV.
+
+        Args:
+            name (string): the name of the PV to get the value for
+            to_string (bool, optional): whether to get the value as a string
+            is_local (bool, optional): whether to automatically prepend the
+                local inst prefix to the PV name
+            use_numpy (bool, optional): True use numpy to return arrays,
+                False return a list; None for use the default
+
+        Returns:
+            the current PV value
+        """
