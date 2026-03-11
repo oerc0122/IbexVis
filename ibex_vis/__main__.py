@@ -1,5 +1,5 @@
 """Main runner for ibex_vis."""
 
-from .cli import cli
+from ibex_vis.cli import cli
 
 cli()

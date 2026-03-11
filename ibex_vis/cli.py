@@ -4,11 +4,14 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Final
 
 from . import __version__
 from .vis import main, scan
+from .classes import PropArgs
 
-DEFAULT_PROPERTIES = {
+
+DEFAULT_PROPERTIES: Final[dict[str, PropArgs]] = {
     "time": {
         "rate": 1.0,
         "always_advance": True,
@@ -126,7 +129,7 @@ def cli() -> None:
 
     dummies = {args.genie: "ibex_vis.dummy_genie"}
     if args.inst is not None:
-        key, val = args.inst.split(":")
+        key, val = args.inst.split(":", maxsplit=1)
         dummies[key] = val
 
     if args.dummies_override is not None:

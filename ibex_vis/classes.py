@@ -5,12 +5,11 @@ Classes to manage runs.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
 from dataclasses import dataclass
 from pkgutil import resolve_name
+from typing import Any
 
-RateFunc = Callable[[float, float], float]
-RateType = float | RateFunc | str
+from ibex_vis.types import RateFunc, RateType
 
 
 class Property:
@@ -60,7 +59,9 @@ class Property:
             )
         )
 
-    def __eq__(self, other: Property) -> bool:
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Property):
+            return NotImplemented
         return all(
             getattr(self, prop) == getattr(other, prop)
             for prop in ("name", "rate_up", "rate_down", "always_advance", "units")
@@ -84,11 +85,13 @@ class Property:
         return self.rate_down
 
     def inrange(self) -> bool:
+        if not self.validrange:
+            raise ValueError("validrange is None")
         return self.validrange[0] < self.current < self.validrange[1]
 
     @property
     def rate_up(self) -> float:
-        if isinstance(self._rate_up, Callable):
+        if isinstance(self._rate_up, RateFunc):
             return self._rate_up(self.current, self.target)
 
         return self._rate_up
@@ -96,7 +99,7 @@ class Property:
     @rate_up.setter
     def rate_up(self, value: RateType) -> None:
         match value:
-            case float() | Callable():
+            case float() | RateFunc():
                 self._rate_up = value
             case str():
                 self._rate_up = resolve_name(value)
@@ -105,7 +108,7 @@ class Property:
 
     @property
     def rate_down(self) -> float:
-        if isinstance(self._rate_down, Callable):
+        if isinstance(self._rate_down, RateFunc):
             return self._rate_down(self.current, self.target)
 
         return self._rate_down
@@ -113,7 +116,7 @@ class Property:
     @rate_down.setter
     def rate_down(self, value: RateType) -> None:
         match value:
-            case float() | Callable():
+            case float() | RateFunc():
                 self._rate_down = value
             case str():
                 self._rate_down = resolve_name(value)
@@ -126,11 +129,15 @@ class Property:
 
     @rate.setter
     def rate(self, value: RateType | tuple[RateType, RateType]) -> None:
-        if isinstance(value, tuple):
-            self.rate_up, self.rate_down = value
-        else:
-            self.rate_up = abs(value)
-            self.rate_down = -self.rate_up
+        match value:
+            case (up, down):
+                self.rate_up = up
+                self.rate_down = down
+            case float() | int():
+                self.rate_up = abs(value)
+                self.rate_down = -self.rate_up
+            case RateFunc():
+                self.rate_up = self.rate_down = value
 
     # def time_to_target(self) -> float:
     #     ...

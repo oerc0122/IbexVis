@@ -10,7 +10,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import matplotlib.pyplot as plt
@@ -21,7 +21,7 @@ from ibex_vis.classes import CurrentState, Property
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-    InputParamData: TypeAlias = dict[str, dict[str, float] | Property] | Path
+    from ibex_vis.types import InputParamData, MaybeIterable
 
 
 def reset_state() -> None:
@@ -59,7 +59,7 @@ def runner(
         raise ImportError("Unable to import dummy modules") from err
 
     spec = importlib.util.spec_from_file_location("__user_script__", script_file)
-    if spec is None:
+    if spec is None or spec.loader is None:
         raise ImportError(f"{script_file} is not valid for import.")
 
     module = importlib.util.module_from_spec(spec)
@@ -75,11 +75,11 @@ def runner(
     return dg.CURRENT_STATE
 
 
-def properties_from_input(parameters: InputParamData) -> dict[str, Property]:
+def properties_from_input(parameters: InputParamData | Path) -> dict[str, Property]:
     """Get properties dict from any data structures.
 
     Parameters:
-        parameters (InputParamData): Data to process.
+        parameters (InputParamData | Path): Data to process.
 
     Returns:
         out_dict (dict[str, Property]): Processed files.
@@ -97,7 +97,7 @@ def properties_from_input(parameters: InputParamData) -> dict[str, Property]:
         with parameters.open(encoding="utf-8") as config_file:
             parameters = json.load(config_file)
 
-    out_dict = {}
+    out_dict: dict[str, Property] = {}
     try:
         for key, val in parameters.items():
             if isinstance(val, Property):
@@ -144,7 +144,7 @@ def scan(script_file: Path) -> set[str]:
 
 def main(
     input_scripts: Path | Iterable[Path],
-    parameters: InputParamData | Iterable[InputParamData],
+    parameters: MaybeIterable[InputParamData | Path],
     *,
     plot: Sequence[str] = (),
     out_plot: Path | None = None,
@@ -172,11 +172,11 @@ def main(
         input_scripts = (input_scripts,)
 
     if isinstance(parameters, (Path, dict)):
-        parameters = itertools.repeat(parameters)
+        parameters: Iterable[Path | InputParamData] = itertools.repeat(parameters)
 
-    parameters = map(properties_from_input, parameters)
+    parsed = map(properties_from_input, parameters)
 
-    for script, params in zip(input_scripts, parameters, strict=False):
+    for script, params in zip(input_scripts, parsed, strict=False):
         if not script.is_file():
             raise FileNotFoundError(f"{script} is not a file.")
 
