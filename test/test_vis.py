@@ -8,7 +8,7 @@ from ibex_vis.vis import properties_from_input, runner
 
 DATA_DIR = Path(__file__).parent / "data"
 
-TEST_SCRIPT = (DATA_DIR / "test-script.genie").read_text(encoding="utf-8")
+TEST_SCRIPT = (DATA_DIR / "trial_script.py").read_text(encoding="utf-8")
 
 
 @pytest.fixture
@@ -33,7 +33,7 @@ def test_properties_from_input(properties):
 
 
 def test_runner(tmp_path, properties):
-    script_file = tmp_path / "test_script.py"
+    script_file = tmp_path / "trial_script.py"
     script_file.write_text(TEST_SCRIPT, encoding="utf-8")
 
     run = runner(
@@ -49,7 +49,7 @@ def test_runner(tmp_path, properties):
 
 
 def test_runner_bailout(tmp_path, properties):
-    script_file = tmp_path / "test_script.py"
+    script_file = tmp_path / "trial_script.py"
 
     # Never ends
     mod_script = TEST_SCRIPT.replace("lowlimit = tt-5", "lowlimit = tt+5")

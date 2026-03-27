@@ -5,8 +5,8 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__
-from .vis import main, scan
+from ibex_vis import __version__
+from ibex_vis.vis import main, scan
 
 DEFAULT_PROPERTIES = {
     "time": {
@@ -41,7 +41,6 @@ def dump(args: argparse.Namespace) -> None:
 
 def cli() -> None:
     parser = argparse.ArgumentParser(
-        prog="Ibex Vis",
         description="Visualise the results of an IBEX control script.",
     )
     parser.add_argument("-V", "--version", action="version", version=f"%(prog)s v{__version__}")

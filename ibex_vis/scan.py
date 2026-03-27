@@ -6,6 +6,7 @@ import ast
 import importlib.util
 import logging
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
@@ -18,12 +19,28 @@ logging.basicConfig(level=logging.DEBUG)
 
 class Scanner(ast.NodeVisitor):
     CSET_KW: Final[set[str]] = {"runcontrol", "lowlimit", "highlimit", "wait", "verbose"}
+    EXCLUDE: str[str] = set(sys.modules) | {
+        "__main__",
+        "genie_python",
+        "numpy",
+        "scipy",
+        "matplotlib",
+        "pytest",
+        "ase",
+    }
+
+    @contextmanager
+    def _scanning(self, script_file: Path) -> Iterator[None]:
+        self.currently_scanning = script_file
+        yield
+        del self.currently_scanning
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.blocks: set[str] = set()
-        self.seen: set[str] = set(sys.modules) | {"genie_python"} | {"inst"} | {"numpy"}
+        self.seen: set[str] = set()
         self.to_scan: set[Path] = set()
+        self.scanned: set[Path] = set()
 
     def visit_Call(self, node: ast.Call) -> None:
         super().generic_visit(node)
@@ -39,11 +56,11 @@ class Scanner(ast.NodeVisitor):
         super().generic_visit(node)
 
         for alias in node.names:
-            if alias.name not in self.seen:
-                for name, path in get_modules(alias.name):
-                    print(name, path)
-                    self.to_scan.add(path)
-                    self.seen.add(name)
+            for name, path in get_modules(alias.name, self.EXCLUDE):
+                if name in self.seen:
+                    continue
+                self.to_scan.add(path)
+                self.seen.add(name)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         super().generic_visit(node)
@@ -51,15 +68,19 @@ class Scanner(ast.NodeVisitor):
         if not node.module:
             return
 
-        for name, path in get_modules(node.module):
+        for name, path in get_modules(node.module, self.EXCLUDE):
+            if name in self.seen:
+                continue
             self.to_scan.add(path)
             self.seen.add(name)
 
     def scan_single_file(self, script_file: Path) -> set[str]:
-        tree = ast.parse(script_file.read_text(encoding="utf-8"))
-        LOG.info("Scanning %s...", script_file.stem)
+        with self._scanning(script_file):
+            tree = ast.parse(script_file.read_text(encoding="utf-8"))
+            LOG.info("Scanning %s...", script_file)
 
-        self.visit(tree)
+            self.visit(tree)
+            self.scanned.add(script_file)
         return self.blocks
 
     def scan(self, script_file: Path) -> set[str]:
@@ -68,15 +89,17 @@ class Scanner(ast.NodeVisitor):
         while self.to_scan:
             next_file = self.to_scan.pop()
             self.scan_single_file(next_file)
-
         return self.blocks
 
 
-def get_modules(module: str) -> Iterator[tuple[str, Path]]:
+def get_modules(module: str, exclude: set[str]) -> Iterator[tuple[str, Path]]:
     """Find modules from an Import node.
 
     Parameters:
         module (str): Module identifier
+
+    Raises:
+        ValueError: Unable to determine module class.
 
     Yields:
         Paths to scan
@@ -85,32 +108,36 @@ def get_modules(module: str) -> Iterator[tuple[str, Path]]:
 
     # Find root
     spec = importlib.util.find_spec(path[0])
-    print(spec, path)
-    if spec is None or not spec.origin:
+
+    if path[0] in exclude:
         return
 
-    root = Path(spec.origin)
-    yield path[0], root
+    if spec is None or not spec.origin:
+        LOG.warning("Missing import %s, perhaps not installed in PYTHONPATH", path)
+        return
 
-    for i, _ in enumerate(path[1:], 1):
-        yield ".".join(path[: i + 1]), root.joinpath(*path[1:i])
+    if spec.origin == "frozen":
+        return
 
+    root = Path(spec.origin).parent.parent
 
-def scan(script_file: Path, seen: set[str] | None = None) -> set[str]:
-    """Scan script for ``cset`` (block) vars.
+    if root.joinpath(*path).is_dir():  # Endpoint is system module
+        ntrial = len(path) + 1
+    elif (
+        trial := root.joinpath(*path).with_suffix(".py")
+    ).is_file():  # Endpoint is system module file
+        ntrial = len(path)
+        yield ".".join(path), trial
+    elif not (Path(spec.origin).parent / "__init__.py").is_file():  # Local/PYTHONPATH import
+        yield ".".join(path), Path(spec.origin)
+        return
+    elif (
+        trial := root.joinpath(*path[:-1]).with_suffix(".py")
+    ).is_file():  # Endpoint is component of file
+        ntrial = len(path)
+        yield ".".join(path), trial
+    else:
+        raise ValueError("Unable to determine endpoint")
 
-    Parameters:
-        script_file (Path): File to scan.
-        seen (set[str], optional): Cache of already seen files.
-
-    Returns:
-        blocks (set[str]): Present block variables.
-
-    Notes:
-        Assumes block names are given as literals.
-    """
-    scanner = Scanner()
-
-    scanner.scan(script_file)
-
-    return scanner.blocks
+    for part_path in (path[:i] for i in range(1, ntrial)):
+        yield ".".join(part_path), root.joinpath(*part_path) / "__init__.py"

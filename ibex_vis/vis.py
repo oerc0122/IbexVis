@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 import importlib
 import importlib.util
 import itertools
@@ -17,6 +16,7 @@ import matplotlib.pyplot as plt
 
 from ibex_vis import dummy_genie as dg
 from ibex_vis.classes import CurrentState, Property
+from ibex_vis.scan import Scanner
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -124,22 +124,11 @@ def scan(script_file: Path) -> set[str]:
     Notes:
         Assumes block names are given as literals.
     """
-    tree = ast.parse(script_file.read_text(encoding="utf-8"))
-    CSET_KW = {"runcontrol", "lowlimit", "highlimit", "wait", "verbose"}
+    scanner = Scanner()
 
-    blocks = set()
+    scanner.scan(script_file)
 
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "cset"
-        ):
-            blocks |= {arg.value for arg in node.args[::2] if isinstance(arg, ast.Constant)} | {
-                kw.arg for kw in node.keywords
-            } - CSET_KW
-
-    return blocks
+    return scanner.blocks
 
 
 def main(
